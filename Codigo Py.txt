@@ -1,0 +1,324 @@
+controllers
+  controllers.py
+from flask import request, jsonify
+from models.models import User, Company
+from database.database import db
+
+class UserController:
+    def get_all(self):
+        users = User.query.all()
+        return jsonify([user.to_dict() for user in users])
+
+    def get_by_id(self, id):
+        user = User.query.get(id)
+        return jsonify(user.to_dict()) if user else ('', 404)
+
+    def create(self):
+        data = request.json
+        # Validación de entradas
+        if not data.get('username') or not data.get('password'):
+            return jsonify({'error': 'Username and password are required'}), 400
+        new_user = User(username=data['username'], password=data['password'])
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify(new_user.to_dict()), 201
+
+    def update(self, id):
+        user = User.query.get(id)
+        if not user:
+            return ('', 404)
+        data = request.json
+        # Validación de entradas
+        if not data.get('username') or not data.get('password'):
+            return jsonify({'error': 'Username and password are required'}), 400
+        user.username = data['username']
+        user.password = data['password']
+        db.session.commit()
+        return jsonify(user.to_dict())
+
+    def delete(self, id):
+        user = User.query.get(id)
+        if not user:
+            return ('', 404)
+        db.session.delete(user)
+        db.session.commit()
+        return ('', 204)
+
+class CompanyController:
+    def get_all(self):
+        companies = Company.query.all()
+        return jsonify([company.to_dict() for company in companies])
+
+    def get_by_id(self, id):
+        company = Company.query.get(id)
+        return jsonify(company.to_dict()) if company else ('', 404)
+
+    def create(self):
+        data = request.json
+        # Validación de entradas
+        if not data.get('name'):
+            return jsonify({'error': 'Company name is required'}), 400
+        new_company = Company(name=data['name'], address=data.get('address'))
+        db.session.add(new_company)
+        db.session.commit()
+        return jsonify(new_company.to_dict()), 201
+
+    def update(self, id):
+        company = Company.query.get(id)
+        if not company:
+            return ('', 404)
+        data = request.json
+        # Validación de entradas
+        if not data.get('name'):
+            return jsonify({'error': 'Company name is required'}), 400
+        company.name = data['name']
+        company.address = data.get('address')
+        db.session.commit()
+        return jsonify(company.to_dict())
+
+    def delete(self, id):
+        company = Company.query.get(id)
+        if not company:
+            return ('', 404)
+        db.session.delete(company)
+        db.session.commit()
+        return ('', 204)
+
+
+database
+
+database
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+graphql_schema
+
+graphql_schema.py
+import graphene
+from models.models import User, Company
+from database.database import db
+
+# Definición de los tipos para los datos (Usuarios y Empresas)
+class UserType(graphene.ObjectType):
+    id = graphene.Int()
+    username = graphene.String()
+
+class CompanyType(graphene.ObjectType):
+    id = graphene.Int()
+    name = graphene.String()
+    address = graphene.String()
+
+# Consultas (Query - GET)
+class Query(graphene.ObjectType):
+    all_users = graphene.List(UserType)
+    all_companies = graphene.List(CompanyType)
+
+    def resolve_all_users(self, info):
+        return User.query.all()
+
+    def resolve_all_companies(self, info):
+        return Company.query.all()
+
+# Mutaciones (Mutation - POST, PUT, DELETE)
+class CreateUser(graphene.Mutation):
+    class Arguments:
+        username = graphene.String()
+        password = graphene.String()
+
+    user = graphene.Field(UserType)
+
+    def mutate(self, info, username, password):
+        new_user = User(username=username, password=password)
+        db.session.add(new_user)
+        db.session.commit()
+        return CreateUser(user=new_user)
+
+class UpdateUser(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int()
+        username = graphene.String()
+        password = graphene.String()
+
+    user = graphene.Field(UserType)
+
+    def mutate(self, info, id, username, password):
+        user = User.query.get(id)
+        if user:
+            user.username = username
+            user.password = password
+            db.session.commit()
+            return UpdateUser(user=user)
+        return UpdateUser(user=None)
+
+class DeleteUser(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int()
+
+    success = graphene.Boolean()
+
+    def mutate(self, info, id):
+        user = User.query.get(id)
+        if user:
+            db.session.delete(user)
+            db.session.commit()
+            return DeleteUser(success=True)
+        return DeleteUser(success=False)
+
+class CreateCompany(graphene.Mutation):
+    class Arguments:
+        name = graphene.String()
+        address = graphene.String()
+
+    company = graphene.Field(CompanyType)
+
+    def mutate(self, info, name, address):
+        new_company = Company(name=name, address=address)
+        db.session.add(new_company)
+        db.session.commit()
+        return CreateCompany(company=new_company)
+
+class UpdateCompany(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int()
+        name = graphene.String()
+        address = graphene.String()
+
+    company = graphene.Field(CompanyType)
+
+    def mutate(self, info, id, name, address):
+        company = Company.query.get(id)
+        if company:
+            company.name = name
+            company.address = address
+            db.session.commit()
+            return UpdateCompany(company=company)
+        return UpdateCompany(company=None)
+
+class DeleteCompany(graphene.Mutation):
+    class Arguments:
+        id = graphene.Int()
+
+    success = graphene.Boolean()
+
+    def mutate(self, info, id):
+        company = Company.query.get(id)
+        if company:
+            db.session.delete(company)
+            db.session.commit()
+            return DeleteCompany(success=True)
+        return DeleteCompany(success=False)
+
+# Definición de la clase de Mutaciones que incluye todas las mutaciones para los usuarios y las empresas
+class Mutation(graphene.ObjectType):
+    create_user = CreateUser.Field()
+    update_user = UpdateUser.Field()
+    delete_user = DeleteUser.Field()
+    create_company = CreateCompany.Field()
+    update_company = UpdateCompany.Field()
+    delete_company = DeleteCompany.Field()
+
+# Esquema completo que incluye tanto las consultas (Query) como las mutaciones (Mutation)
+schema = graphene.Schema(query=Query, mutation=Mutation)
+
+models
+models.py
+from database.database import db
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username
+        }
+
+class Company(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    address = db.Column(db.String(120), nullable=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'address': self.address
+        }
+
+routes
+routes.py
+from flask import Blueprint
+from controllers.controllers import UserController, CompanyController
+
+def register_routes(app):
+    user_controller = UserController()
+    company_controller = CompanyController()
+
+    # Rutas para usuarios
+    app.add_url_rule('/api/users', view_func=user_controller.get_all, methods=['GET'], endpoint='user_get_all')
+    app.add_url_rule('/api/users/<int:id>', view_func=user_controller.get_by_id, methods=['GET'], endpoint='user_get_by_id')
+    app.add_url_rule('/api/users', view_func=user_controller.create, methods=['POST'], endpoint='user_create')
+    app.add_url_rule('/api/users/<int:id>', view_func=user_controller.update, methods=['PUT'], endpoint='user_update')
+    app.add_url_rule('/api/users/<int:id>', view_func=user_controller.delete, methods=['DELETE'], endpoint='user_delete')
+
+    # Rutas para empresas
+    app.add_url_rule('/api/companies', view_func=company_controller.get_all, methods=['GET'], endpoint='company_get_all')
+    app.add_url_rule('/api/companies/<int:id>', view_func=company_controller.get_by_id, methods=['GET'], endpoint='company_get_by_id')
+    app.add_url_rule('/api/companies', view_func=company_controller.create, methods=['POST'], endpoint='company_create')
+    app.add_url_rule('/api/companies/<int:id>', view_func=company_controller.update, methods=['PUT'], endpoint='company_update')
+    app.add_url_rule('/api/companies/<int:id>', view_func=company_controller.delete, methods=['DELETE'], endpoint='company_delete')
+
+
+.env
+DATABASE_URL="postgresql://neondb_owner:3Db8BeJsXLcw@ep-dark-term-a5oonqb7.us-east-2.aws.neon.tech/prisma_migrate_shadow_db_53b15455-8cfc-471d-ac69-0e3320a75b8f?sslmode=require"
+PORT=8082
+JWT_SECRET="your-secret-key-here"
+
+
+app.py
+from flask import Flask
+from flask_graphql import GraphQLView
+from flask_cors import CORS
+from dotenv import load_dotenv
+import os
+from database.database import db
+from routes.routes import register_routes
+from graphql_schema.graphql_schema import schema
+
+load_dotenv()
+
+app = Flask(__name__)
+CORS(app)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
+
+# Register routes
+register_routes(app)
+
+# GraphQL endpoint
+app.add_url_rule('/graphql', view_func=GraphQLView.as_view('graphql', schema=schema, graphiql=True))
+
+if __name__ == '__main__':
+    app.run(port=8082)  # Cambiado a puerto 8082
+
+
+config
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class Config:
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    PORT = 8082  # Cambiado a 8082
+    JWT_SECRET = os.getenv("JWT_SECRET")
+
+
